@@ -1,17 +1,5 @@
 package com.flakkeeverhuizers.exception;
 
-import com.flakkeeverhuizers.controller.common.GlobalErrorResponse;
-import com.flakkeeverhuizers.controller.model.request.UserRequest;
-import com.flakkeeverhuizers.db.repository.AddressTypesRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -20,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
 import java.util.*;
 
 public class Generator {
@@ -31,6 +18,8 @@ public class Generator {
     private static String EXCEPTION_PATH = "src/main/java/com/flakkeeverhuizers/exception/";
     private static String SERVICE_PATH = "src/main/java/com/flakkeeverhuizers/service/";
 
+    private static String ENTITY_TO_DTO_PATH = "src/main/java/com/flakkeeverhuizers/controller/common/";
+
 
     private static String ENTITY_PACKAGE = "package com.flakkeeverhuizers.db.entity;";
     private static String REPO_PACKAGE = "package com.flakkeeverhuizers.db.repository;";
@@ -39,9 +28,16 @@ public class Generator {
     private static String SERVICE_PACKAGE = "package com.flakkeeverhuizers.service;";
 
     private static String SQL_FILE_PATH = "/Users/kevynmiranda/Documents/sql.sql";
+    private static String ENTITY_TO_DTO_PACKAGE = "package com.flakkeeverhuizers.controller.common;";
 
 
     public static void main(String[] args) {
+        createFindMethodsInService("Relocations", "RelocationResponse", "RelocationsResponse",
+                "RelocationsRepository", "id", "id", "String"); //Nao apagar
+
+
+    }
+    public static void mainni(String[] args) {
         // Entity and repo
         convertSqlToInput(SQL_FILE_PATH);
 
@@ -50,28 +46,38 @@ public class Generator {
 
         /**********************/
 
+
         // Response and find method
-        String originPath = ENTITY_PATH + entityName+".java";
+        String originPath = ENTITY_PATH + entityName + ".java";
 
-        String singularResponseClassName = fromPluralToSingular(entityName)+"Response";
-        String pluralResponseClassName = entityName+"Response";
+        String singularResponseClassName = fromPluralToSingular(entityName) + "Response";
+        String pluralResponseClassName = entityName + "Response";
 
-        String targetSingularPath = RESPONSE_PATH + singularResponseClassName+".java";
-        String targetPluralPath = RESPONSE_PATH + pluralResponseClassName+".java";
+        String targetSingularPath = RESPONSE_PATH + singularResponseClassName + ".java";
+        String targetPluralPath = RESPONSE_PATH + pluralResponseClassName + ".java";
+        createSingularResponse(originPath, targetSingularPath, singularResponseClassName);
+        createPluralResponse(targetPluralPath, pluralResponseClassName, singularResponseClassName);
 
-        //createSingularResponse(originPath, targetSingularPath, singularResponseClassName); Nao apagar
-        //createPluralResponse(targetPluralPath, pluralResponseClassName, singularResponseClassName); Nao apagar
 
+        List<String> entities = List.of("AddressComments", "Addresses", "AddressFloors", "AddressFloorSpaces", "AddressTypes",
+                "Boxes", "Countries", "Floors", "HouseTypes", "ItemCategories", "LiftOptions", "Vias", "VatRates", "Spaces"
+                , "AddressFloorSpaceBoxes", "AddressFloorSpaceItems", "BranchAddresses", "ExtendedUser", "MovingActivities",
+                "MovingDays", "Notes", "Quotations", "VatRates", "Relocations", "RelocationLabels", "Scenarios", "User");
+        // entityToDto
+        createEntityToDto("EntityToDTO", entities);
 
-        // create service class with save method
         String serviceName = entityName + "Service";
         String repoName = entityName + "Repository";
-        String serviceCompletePath = SERVICE_PATH + serviceName+".java";
-        //createService(serviceCompletePath, serviceName, repoName);
+        String serviceCompletePath = SERVICE_PATH + serviceName + ".java";
+
+        // create service class with save method
+        //createService(serviceCompletePath, serviceName, repoName, entityName, entityName + "Request");
+
 
         // Find method
-        createFindMethodsInService(singularResponseClassName, pluralResponseClassName,
-                repoName, "name", "name", "String"); //Nao apagar
+        createFindMethodsInService(entityName, singularResponseClassName, pluralResponseClassName,
+                repoName, "", "", ""); //Nao apagar
+
 
         /******************************/
         // Exception
@@ -245,7 +251,7 @@ public class Generator {
 
             String line;
             List<String> undesiredAnnotations =
-                    List.of("@Entity", "@Table", "@Id", "@Gener", "@Column", "@Type", "@Many", "@One", "@Join");
+                    List.of("@Entity", "@Table", "@Id", "@Gener", "@Column", "@Type", "@Many", "@One", "@Join", "@Lob");
 
             List<String> nativeJavaTypes =
                     List.of("String", "int", "Integer", "Boolean", "LocalDateTime", "BigDecimal", "double", "UUID");
@@ -275,7 +281,7 @@ public class Generator {
 
                             if (!isNativeJavaType) {
                                 String[] partsOfLine = line.trim().split(" ");
-                                writer.write("\t" + partsOfLine[0] + " " + partsOfLine[1] + "Response " + partsOfLine[2] + "\n");
+                                writer.write("\t" + partsOfLine[0] + " " + fromPluralToSingular(partsOfLine[1]) + "Response " + partsOfLine[2] + "\n");
                             } else {
                                 writer.write(line + "\n");
                             }
@@ -323,7 +329,6 @@ public class Generator {
 
         try (BufferedWriter writer = Files.newBufferedWriter(targetPath, StandardCharsets.UTF_8)) {
             List<String>  allAttributes = getAllAttributes(Class.forName(completeClassPath(entityName, ENTITY_PACKAGE)).newInstance());
-
             writer.write(SERVICE_PACKAGE+"\n\n\n");
 
             writer.write("import com.flakkeeverhuizers.db.entity.*;\n");
@@ -333,7 +338,8 @@ public class Generator {
             writer.write("import org.springframework.stereotype.Service;\n\n");
 
             writer.write("import java.util.ArrayList;\n");
-            writer.write("import java.util.List;\n\n");
+            writer.write("import java.util.List;\n");
+            writer.write("import static com.flakkeeverhuizers.controller.common.EntityToDTO.*;\n\n");
 
 
             writer.write("@RequiredArgsConstructor\n");
@@ -345,18 +351,17 @@ public class Generator {
 
             writer.write("\tpublic void save("+ requestName + " " + firstCharLowerCase(requestName) + ") {\n");
 
-            writer.write("\t" + entityName + " " + firstCharLowerCase(entityName) + " = new " + entityName + "();\n");
+            writer.write("\t\t" + entityName + " " + firstCharLowerCase(entityName) + " = new " + entityName + "();\n");
 
 
-            allAttributes.forEach(attribute -> {
-                System.out.println("\t\t" + firstCharLowerCase(entityName) + setMethodFromFieldName(attribute)
-                        .replace("***", firstCharLowerCase(requestName) + getMethodFromFieldName(attribute).replace(";", "")));
-            });
+            for(String attribute : allAttributes){
+                writer.write("\t\t" + firstCharLowerCase(entityName) + setMethodFromFieldName(attribute)
+                        .replace("***", firstCharLowerCase(requestName) + getMethodFromFieldName(attribute).replace(";", ""))+"\n");
 
-            writer.write("\t"+ repoName + ".save(" + firstCharLowerCase(entityName) + ");\n");
+            }
 
+            writer.write("\t\t"+ firstCharLowerCase(repoName) + ".save(" + firstCharLowerCase(entityName) + ");\n");
             writer.write("\t}\n");
-
             writer.write("}");
 
         }catch (Exception e){
@@ -365,13 +370,49 @@ public class Generator {
 
     }
 
-    public static void createFindMethodsInService(String singularResponseName, String pluralResponseName, String varRepo,
+    public static void createEntityToDto(String converterName, List<String> entities){
+        Path targetPath = Paths.get(ENTITY_TO_DTO_PATH + converterName + ".java");
+
+        try (BufferedWriter writer = Files.newBufferedWriter(targetPath, StandardCharsets.UTF_8)) {
+            writer.write(ENTITY_TO_DTO_PACKAGE+"\n\n\n");
+            writer.write("import com.flakkeeverhuizers.controller.model.response.*;\n");
+            writer.write("import com.flakkeeverhuizers.db.entity.*;\n\n");
+
+            writer.write("public class " + converterName + "{\n\n");
+
+            for(String entity : entities){
+                String singularResponseClassName = fromPluralToSingular(entity) + "Response";
+
+                writer.write("\tpublic static " +  singularResponseClassName + " " + firstCharLowerCase(entity) + "To" + singularResponseClassName + "(" + entity + " " + firstCharLowerCase(entity) + "){\n");
+
+                writer.write("\t\t" + singularResponseClassName + " " + firstCharLowerCase(singularResponseClassName) + " = new "+ singularResponseClassName + "();\n");
+                try{
+                    List<String> allAttributes = getAllAttributes(Class.forName(completeClassPath(entity, ENTITY_PACKAGE)).newInstance());
+                    for(String attribute : allAttributes){
+                        writer.write("\t\t" + firstCharLowerCase(singularResponseClassName) + setMethodFromFieldName(attribute)
+                                .replace("***", firstCharLowerCase(entity) + getMethodFromFieldName(attribute).replace(";", "")) + "\n");
+
+                    }
+
+                }catch (Exception e){
+
+                }
+                writer.write("\n");
+                writer.write("\t\treturn " + firstCharLowerCase(singularResponseClassName) + ";\n");
+                writer.write("\t}\n\n");
+            }
+
+            writer.write("}");
+        }catch (Exception e){
+
+        }
+    }
+
+    public static void createFindMethodsInService(String entityName, String singularResponseName, String pluralResponseName, String varRepo,
                                          String customFindMethod, String customParam, String customParamsType) {
-        List<String> allAttributes = new ArrayList<>();
         String pluralAttributeName = "";
 
         try{
-            allAttributes = getAllAttributes(Class.forName(completeClassPath(singularResponseName, RESPONSE_PACKAGE)).newInstance());
             pluralAttributeName = getAllAttributes(Class.forName(completeClassPath(pluralResponseName, RESPONSE_PACKAGE)).newInstance()).get(0);
         }catch (Exception e){
         }
@@ -392,17 +433,14 @@ public class Generator {
         String varInList = firstCharLowerCase(listType);
         String varElement = firstCharLowerCase(singularResponseName.replace("Response", ""));
 
+        System.out.println("\n\n");
         System.out.println("public " + returnType + " " + methodNameInService + "(" + methodParamsInService +") {");
         System.out.println("\t" + returnType + " " + varReturn + " = new " + returnType + "();");
         System.out.println("\tList<" + listType + "> " + varList + " = new ArrayList<>();\n");
 
-        System.out.println("\t" + varRepo + "." + methodNameInRepo + "(" + methodParamsInRepo + ").forEach(" + varElement + " -> {");
-        System.out.println("\t\t" + listType + " " + varInList + " = new " + listType + "();");
+        System.out.println("\t" + firstCharLowerCase(varRepo) + "." + methodNameInRepo + "(" + methodParamsInRepo + ").forEach(" + varElement + " -> {");
 
-        allAttributes.forEach(attribute -> {
-            System.out.println("\t\t" + varInList + setMethodFromFieldName(attribute)
-                    .replace("***", varElement + getMethodFromFieldName(attribute).replace(";", "")));
-        });
+        System.out.println("\t\t" + listType + " " + varInList + " = " + firstCharLowerCase(entityName) + "To" + singularResponseName + "(" + varElement + ");");//= new " + listType + "();"); // recebe do metodo de conversao dentro do entitytodto
 
         System.out.println("");
         System.out.println("\t\t" + varList + ".add(" + varInList + ");");
