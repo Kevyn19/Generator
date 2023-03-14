@@ -33,7 +33,7 @@ public class Generator {
 
     public static void main(String[] args) {
         createFindMethodsInService("Relocations", "RelocationResponse", "RelocationsResponse",
-                "RelocationsRepository", "id", "id", "String"); //Nao apagar
+                "RelocationsRepository", "", "", "", true); //Nao apagar
 
 
     }
@@ -76,7 +76,7 @@ public class Generator {
 
         // Find method
         createFindMethodsInService(entityName, singularResponseClassName, pluralResponseClassName,
-                repoName, "", "", ""); //Nao apagar
+                repoName, "", "", "", true); //Nao apagar
 
 
         /******************************/
@@ -409,7 +409,7 @@ public class Generator {
     }
 
     public static void createFindMethodsInService(String entityName, String singularResponseName, String pluralResponseName, String varRepo,
-                                         String customFindMethod, String customParam, String customParamsType) {
+                                                  String customFindMethod, String customParam, String customParamsType, Boolean returnList) {
         String pluralAttributeName = "";
 
         try{
@@ -438,13 +438,23 @@ public class Generator {
         System.out.println("\t" + returnType + " " + varReturn + " = new " + returnType + "();");
         System.out.println("\tList<" + listType + "> " + varList + " = new ArrayList<>();\n");
 
-        System.out.println("\t" + firstCharLowerCase(varRepo) + "." + methodNameInRepo + "(" + methodParamsInRepo + ").forEach(" + varElement + " -> {");
+        if(returnList) {
+            System.out.println("\t" + firstCharLowerCase(varRepo) + "." + methodNameInRepo + "(" + methodParamsInRepo + ").forEach(" + varElement + " -> {");
 
+        }else{
+            System.out.println("\t" + entityName + " " + fromPluralToSingular(varList) + " = " +  firstCharLowerCase(varRepo) + "."
+                    + methodNameInRepo + "(" + methodParamsInRepo + ").orElseThrow(() -> new RuntimeException(" + '"' + '"' + "));\n");
+
+        }
         System.out.println("\t\t" + listType + " " + varInList + " = " + firstCharLowerCase(entityName) + "To" + singularResponseName + "(" + varElement + ");");//= new " + listType + "();"); // recebe do metodo de conversao dentro do entitytodto
+
 
         System.out.println("");
         System.out.println("\t\t" + varList + ".add(" + varInList + ");");
-        System.out.println("\t});\n");
+
+        if(returnList) {
+            System.out.println("\t});\n");
+        }
 
         System.out.println("\t" + varReturn + ".set" + firstCharUpperCase(pluralAttributeName) + "(" + varList + ");");
         System.out.println("\treturn " + varReturn + ";");
@@ -543,7 +553,7 @@ public class Generator {
 
         return originalType;
     }
-    
+
     public static String fromPluralToSingular(String plural){
         if(plural.endsWith("es")){
             if (plural.endsWith("ies")) {
